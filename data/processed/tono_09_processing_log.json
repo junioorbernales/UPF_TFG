@@ -1,0 +1,170 @@
+[
+    {
+        "filename": "tono_09_attack_0.1_release_0.1.wav",
+        "attack_ms": 0.1,
+        "release_s": 0.1,
+        "threshold_db": -9,
+        "ratio": 2.0
+    },
+    {
+        "filename": "tono_09_attack_0.1_release_0.3.wav",
+        "attack_ms": 0.1,
+        "release_s": 0.3,
+        "threshold_db": -9,
+        "ratio": 2.0
+    },
+    {
+        "filename": "tono_09_attack_0.1_release_0.6.wav",
+        "attack_ms": 0.1,
+        "release_s": 0.6,
+        "threshold_db": -9,
+        "ratio": 2.0
+    },
+    {
+        "filename": "tono_09_attack_0.1_release_1.2.wav",
+        "attack_ms": 0.1,
+        "release_s": 1.2,
+        "threshold_db": -9,
+        "ratio": 2.0
+    },
+    {
+        "filename": "tono_09_attack_0.3_release_0.1.wav",
+        "attack_ms": 0.3,
+        "release_s": 0.1,
+        "threshold_db": -9,
+        "ratio": 2.0
+    },
+    {
+        "filename": "tono_09_attack_0.3_release_0.3.wav",
+        "attack_ms": 0.3,
+        "release_s": 0.3,
+        "threshold_db": -9,
+        "ratio": 2.0
+    },
+    {
+        "filename": "tono_09_attack_0.3_release_0.6.wav",
+        "attack_ms": 0.3,
+        "release_s": 0.6,
+        "threshold_db": -9,
+        "ratio": 2.0
+    },
+    {
+        "filename": "tono_09_attack_0.3_release_1.2.wav",
+        "attack_ms": 0.3,
+        "release_s": 1.2,
+        "threshold_db": -9,
+        "ratio": 2.0
+    },
+    {
+        "filename": "tono_09_attack_1_release_0.1.wav",
+        "attack_ms": 1,
+        "release_s": 0.1,
+        "threshold_db": -9,
+        "ratio": 2.0
+    },
+    {
+        "filename": "tono_09_attack_1_release_0.3.wav",
+        "attack_ms": 1,
+        "release_s": 0.3,
+        "threshold_db": -9,
+        "ratio": 2.0
+    },
+    {
+        "filename": "tono_09_attack_1_release_0.6.wav",
+        "attack_ms": 1,
+        "release_s": 0.6,
+        "threshold_db": -9,
+        "ratio": 2.0
+    },
+    {
+        "filename": "tono_09_attack_1_release_1.2.wav",
+        "attack_ms": 1,
+        "release_s": 1.2,
+        "threshold_db": -9,
+        "ratio": 2.0
+    },
+    {
+        "filename": "tono_09_attack_3_release_0.1.wav",
+        "attack_ms": 3,
+        "release_s": 0.1,
+        "threshold_db": -9,
+        "ratio": 2.0
+    },
+    {
+        "filename": "tono_09_attack_3_release_0.3.wav",
+        "attack_ms": 3,
+        "release_s": 0.3,
+        "threshold_db": -9,
+        "ratio": 2.0
+    },
+    {
+        "filename": "tono_09_attack_3_release_0.6.wav",
+        "attack_ms": 3,
+        "release_s": 0.6,
+        "threshold_db": -9,
+        "ratio": 2.0
+    },
+    {
+        "filename": "tono_09_attack_3_release_1.2.wav",
+        "attack_ms": 3,
+        "release_s": 1.2,
+        "threshold_db": -9,
+        "ratio": 2.0
+    },
+    {
+        "filename": "tono_09_attack_10_release_0.1.wav",
+        "attack_ms": 10,
+        "release_s": 0.1,
+        "threshold_db": -9,
+        "ratio": 2.0
+    },
+    {
+        "filename": "tono_09_attack_10_release_0.3.wav",
+        "attack_ms": 10,
+        "release_s": 0.3,
+        "threshold_db": -9,
+        "ratio": 2.0
+    },
+    {
+        "filename": "tono_09_attack_10_release_0.6.wav",
+        "attack_ms": 10,
+        "release_s": 0.6,
+        "threshold_db": -9,
+        "ratio": 2.0
+    },
+    {
+        "filename": "tono_09_attack_10_release_1.2.wav",
+        "attack_ms": 10,
+        "release_s": 1.2,
+        "threshold_db": -9,
+        "ratio": 2.0
+    },
+    {
+        "filename": "tono_09_attack_30_release_0.1.wav",
+        "attack_ms": 30,
+        "release_s": 0.1,
+        "threshold_db": -9,
+        "ratio": 2.0
+    },
+    {
+        "filename": "tono_09_attack_30_release_0.3.wav",
+        "attack_ms": 30,
+        "release_s": 0.3,
+        "threshold_db": -9,
+        "ratio": 2.0
+    },
+    {
+        "filename": "tono_09_attack_30_release_0.6.wav",
+        "attack_ms": 30,
+        "release_s": 0.6,
+        "threshold_db": -9,
+        "ratio": 2.0
+    },
+    {
+        "filename": "tono_09_attack_30_release_1.2.wav",
+        "attack_ms": 30,
+        "release_s": 1.2,
+        "threshold_db": -9,
+        "ratio": 2.0
+    }
+]
