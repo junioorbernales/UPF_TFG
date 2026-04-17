@@ -1,0 +1,2 @@
+networkx==3.4.2
+-e git+https://github.com/francescopapaleo/neural-audio-spring-reverb.git@0ea9fce3f6e1629318cd23d447c102d48e8492bb#egg=neural_audio_spring_reverb
