@@ -8,11 +8,16 @@ from tqdm import tqdm
 import re
 
 def extract_params(filename):
-    """Extrae attack y release del nombre del archivo usando regex."""
-    # Busca patrones como attack_0.1_release_0.1
-    match = re.search(r"attack_([\d.]+)_release_([\d.]+)", filename)
+    """Extrae attack y release del nombre del archivo."""
+    
+    match = re.search(
+        r"attack_(\d*\.?\d+)_release_(\d*\.?\d+)",
+        filename
+    )
+
     if match:
         return float(match.group(1)), float(match.group(2))
+
     return None, None
 
 def prepare_dataset(data_root, output_root, segment_sec=1.0, sr=44100):
