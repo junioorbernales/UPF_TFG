@@ -1,17 +1,11 @@
 import torch
 from torch.utils.data import Dataset
 import pandas as pd
-import torchaudio
 import os
+import soundfile as sf
 
 class CompressorDataset(Dataset):
     def __init__(self, csv_path, audio_root, stage='train'):
-        """
-        csv_path: Ruta al metadata.csv generado
-        audio_root: Ruta a la carpeta 'data_ready'
-        stage: 'train' o 'val'
-        """
-        # Filtrar metadata por etapa (train/val)
         df = pd.read_csv(csv_path)
         self.metadata = df[df['stage'] == stage].reset_index(drop=True)
         self.audio_root = audio_root
@@ -24,16 +18,24 @@ class CompressorDataset(Dataset):
         row = self.metadata.iloc[idx]
         filename = row['filename']
         
-        # Rutas a los archivos fragmentados
+        # Rutas a los archivos
         input_path = os.path.join(self.audio_root, self.stage, 'input', filename)
         target_path = os.path.join(self.audio_root, self.stage, 'target', filename)
 
-        # Cargar audio usando torchaudio (más rápido que librosa para entrenamiento)
-        input_audio, _ = torchaudio.load(input_path)
-        target_audio, _ = torchaudio.load(target_path)
+        # 1. Leer audio con soundfile (devuelve numpy array)
+        # sf.read devuelve (datos, samplerate)
+        input_np, _ = sf.read(input_path)
+        target_np, _ = sf.read(target_path)
 
-        # Parámetros para FiLM (Attack y Release)
-        # Los normalizamos o los pasamos como tensores
-        params = torch.tensor([row['attack'], row['release']], dtype=torch.float32)
+        # 2. Convertir a tensores de PyTorch
+        # Aseguramos que sean Float y tengan forma [1, Samples]
+        input_tensor = torch.from_numpy(input_np).float().unsqueeze(0)
+        target_tensor = torch.from_numpy(target_np).float().unsqueeze(0)
 
-        return input_audio, target_audio, params
+        # 3. Concatenar Dry y Wet para que el modelo vea ambos [2, Samples]
+        x = torch.cat((input_tensor, target_tensor), dim=0)
+
+        # 4. Los parámetros que queremos extraer (Targets)
+        y = torch.tensor([row['attack'], row['release']], dtype=torch.float32)
+
+        return x, y
