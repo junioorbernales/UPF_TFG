@@ -9,9 +9,13 @@ from models.lstm import LSTMRegressor
 from tqdm import tqdm
 
 def evaluate_model():
-    # 1. Configuración de modelo
-    MODEL_TYPE = "TCN"  # Cambia a "LSTM" manualmente aquí
+    # 1. Configuración de modelo e Inversión de Normalización
+    MODEL_TYPE = "TCN" 
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    # IMPORTANTE: Estas deben coincidir con las que usaste en dataset.py
+    NORM_ATTACK = 30.0
+    NORM_RELEASE = 1.2
     
     if MODEL_TYPE == "TCN":
         MODEL_PATH = 'best_model_regressor_tcn.pth'
@@ -32,8 +36,8 @@ def evaluate_model():
     model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
     model.eval()
     
-    reales = []
-    predicciones = []
+    reales_norm = []
+    predicciones_norm = []
 
     print("Procesando archivos de validación...")
     with torch.no_grad():
@@ -41,11 +45,23 @@ def evaluate_model():
             x = x.to(DEVICE)
             preds = model(x)
             
-            reales.append(y.squeeze().cpu().numpy())
-            predicciones.append(preds.squeeze().cpu().numpy())
+            reales_norm.append(y.squeeze().cpu().numpy())
+            predicciones_norm.append(preds.squeeze().cpu().numpy())
 
-    reales = np.array(reales)
-    predicciones = np.array(predicciones)
+    # Convertimos a Arrays de Numpy
+    reales_norm = np.array(reales_norm)
+    predicciones_norm = np.array(predicciones_norm)
+
+    # --- DES-NORMALIZACIÓN ---
+    # Multiplicamos por las constantes para volver a la escala física (ms y s)
+    reales = reales_norm.copy()
+    predicciones = predicciones_norm.copy()
+    
+    reales[:, 0] *= NORM_ATTACK
+    predicciones[:, 0] *= NORM_ATTACK
+    
+    reales[:, 1] *= NORM_RELEASE
+    predicciones[:, 1] *= NORM_RELEASE
 
     # 4. Crear Gráficos
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
@@ -70,12 +86,12 @@ def evaluate_model():
 
     plt.tight_layout()
     nombre_archivo = f'resultados_extraccion_{MODEL_TYPE.lower()}.png'
-    plt.savefig(nombre_archivo, dpi=300) # dpi=300 para calidad de impresión de TFG
+    plt.savefig(nombre_archivo, dpi=300)
     print(f"✅ Gráfico guardado como '{nombre_archivo}'")
     
-    # Mostrar Error Medio
+    # 5. Mostrar Error Medio en unidades reales
     mae = np.mean(np.abs(reales - predicciones), axis=0)
-    print(f"\n--- Métricas Finales {MODEL_TYPE} (MAE) ---")
+    print(f"\n--- Métricas Finales {MODEL_TYPE} (MAE en Unidades Reales) ---")
     print(f"Error medio en Attack: {mae[0]:.4f} ms")
     print(f"Error medio en Release: {mae[1]:.4f} s")
 

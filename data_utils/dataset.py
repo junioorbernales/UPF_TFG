@@ -36,6 +36,9 @@ class CompressorDataset(Dataset):
         x = torch.cat((input_tensor, target_tensor), dim=0)
 
         # 4. Los parámetros que queremos extraer (Targets)
-        y = torch.tensor([row['attack'], row['release']], dtype=torch.float32)
+        # Normalizamos los parámetros a [0, 1] para facilitar el aprendizaje
+        attack = row['attack'] / 30.0    # Normalizar a [0, 1]
+        release = row['release'] / 1.2   # Normalizar a [0, 1]
+        y = torch.tensor([attack, release], dtype=torch.float32)
 
         return x, y
