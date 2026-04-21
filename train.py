@@ -9,8 +9,8 @@ import os
 # --- Configuración ---
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 BATCH_SIZE = 16
-LR = 3e-4 # Subimos un poco el LR, ya que ahora los targets son más pequeños (0 a 1)
-EPOCHS = 50
+LR = 5e-4       # Subimos ligeramente el LR inicial para salir de la "zona plana"
+EPOCHS = 100    # Aumentamos épocas para permitir mayor refinamiento
 AUDIO_ROOT = 'data_ready'
 METADATA_CSV = 'data_ready/metadata.csv'
 
@@ -24,8 +24,6 @@ def train_epoch(model, loader, optimizer, criterion, device):
         optimizer.zero_grad()
         predictions = model(inputs) 
         
-        # Si normalizaste en el dataset (/30 y /1.2), 
-        # targets_params ya vienen en rango [0, 1]
         loss = criterion(predictions, targets_params) 
         
         loss.backward()
@@ -52,7 +50,6 @@ def main():
     train_ds = CompressorDataset(METADATA_CSV, AUDIO_ROOT, stage='train')
     val_ds = CompressorDataset(METADATA_CSV, AUDIO_ROOT, stage='val')
     
-    # num_workers=0 suele evitar problemas de memoria/DLLs en Windows durante el entrenamiento
     train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=0)
     val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
 
@@ -65,10 +62,12 @@ def main():
         from models.lstm import LSTMRegressor 
         model = LSTMRegressor(input_size=2, n_outputs=2).to(DEVICE)
 
-    # Cambiamos a L1Loss (MAE). Al estar los datos entre 0 y 1, 
-    # MSELoss hace los errores muy pequeños (ej: 0.1^2 = 0.01), lo que frena el aprendizaje.
     criterion = nn.L1Loss() 
     optimizer = optim.Adam(model.parameters(), lr=LR)
+    
+    # NUEVO: Programador de Learning Rate
+    # Si la pérdida no mejora en 5 épocas, reduce el LR a la mitad.
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5, verbose=True)
 
     best_val_loss = float('inf')
     
@@ -78,8 +77,12 @@ def main():
         train_loss = train_epoch(model, train_loader, optimizer, criterion, DEVICE)
         val_loss = validate(model, val_loader, criterion, DEVICE)
         
-        # Estas pérdidas ahora estarán en el rango de 0 a 1 (representando el % de error)
-        print(f"Loss (Normalizada) -> Train: {train_loss:.6f} | Val: {val_loss:.6f}")
+        # Actualizamos el scheduler con la pérdida de validación
+        scheduler.step(val_loss)
+        
+        # Obtener LR actual para el log
+        current_lr = optimizer.param_groups[0]['lr']
+        print(f"Loss -> Train: {train_loss:.6f} | Val: {val_loss:.6f} | LR: {current_lr}")
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss
