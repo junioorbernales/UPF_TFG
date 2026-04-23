@@ -67,7 +67,7 @@ def main():
     
     # NUEVO: Programador de Learning Rate
     # Si la pérdida no mejora en 5 épocas, reduce el LR a la mitad.
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5, verbose=True)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
 
     best_val_loss = float('inf')
     
