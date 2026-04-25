@@ -12,62 +12,59 @@ class CompressorDataset(Dataset):
         self.metadata = pd.read_csv(csv_path)
         self.metadata = self.metadata[self.metadata['stage'] == stage]
         
+        # Apuntamos a la carpeta del stage (ej: data_ready/train)
         self.audio_root = Path(audio_root).resolve() / stage 
         self.target_sr = target_sr
-        self.duration_samples = duration_samples # Por defecto 1 segundo a 16kHz
+        self.duration_samples = duration_samples
         
         self.audio_data = []
         self.params = []
         
-        print(f"\n--- DEBUG DATASET ---")
-        print(f"Buscando audios de {stage} en: {self.audio_root}")
-        
-        archivos_encontrados = list(self.audio_root.rglob("*.wav"))
-        archivos_reales = {f.name.lower(): f for f in archivos_encontrados}
-        
-        print(f"Archivos .wav encontrados: {len(archivos_reales)}")
-        
+        print(f"\n--- CARGANDO DATASET: {stage.upper()} ---")
+        print(f"Ruta: {self.audio_root}")
+
         for _, row in tqdm(self.metadata.iterrows(), total=len(self.metadata)):
-            filename = str(row['filename']).lower()
-            if not filename.endswith('.wav'):
-                filename += '.wav'
+            filename = row['filename']
             
-            if filename in archivos_reales:
-                audio_path = archivos_reales[filename]
+            # Buscamos el original (input) y el procesado (target)
+            path_dry = self.audio_root / "input" / filename
+            path_wet = self.audio_root / "target" / filename
+            
+            if path_dry.exists() and path_wet.exists():
                 try:
-                    # 1. Carga con Librosa
-                    waveform, _ = librosa.load(str(audio_path), sr=self.target_sr, mono=False)
+                    # 1. Cargar pistas individuales
+                    audio_dry, _ = librosa.load(str(path_dry), sr=self.target_sr, mono=True)
+                    audio_wet, _ = librosa.load(str(path_wet), sr=self.target_sr, mono=True)
                     
-                    # 2. Asegurar 2 canales (si es mono, duplicamos)
-                    if waveform.ndim == 1:
-                        waveform = np.stack([waveform, waveform])
-                    elif waveform.shape[0] > 2: # Si tiene más de 2, recortar
-                        waveform = waveform[:2, :]
-                    
+                    # 2. Apilar en 2 canales: [0] = Dry, [1] = Wet
+                    waveform = np.stack([audio_dry, audio_wet])
                     waveform_tensor = torch.from_numpy(waveform).float()
                     
-                    # 3. FORZAR LONGITUD (Crucial para el entrenamiento por batches)
+                    # 3. ASEGURAR LONGITUD (Padding/Cropping)
                     # Si es más largo, recortamos
                     if waveform_tensor.shape[1] > self.duration_samples:
                         waveform_tensor = waveform_tensor[:, :self.duration_samples]
-                    # Si es más corto, rellenamos con ceros (padding)
+                    # Si es más corto, rellenamos con ceros
                     elif waveform_tensor.shape[1] < self.duration_samples:
                         padding = self.duration_samples - waveform_tensor.shape[1]
                         waveform_tensor = torch.nn.functional.pad(waveform_tensor, (0, padding))
                     
                     self.audio_data.append(waveform_tensor)
                     
-                    # 4. Normalización de parámetros (Attack hasta 30ms, Release hasta 1.2s)
+                    # 4. Parámetros normalizados (Attack/30, Release/1.2)
                     self.params.append(torch.tensor([
                         row['attack'] / 30.0, 
                         row['release'] / 1.2
                     ], dtype=torch.float32))
 
-                except Exception:
+                except Exception as e:
+                    # print(f"Error en {filename}: {e}")
                     continue
 
         if len(self.audio_data) == 0:
-            raise RuntimeError(f"No se cargó nada en {stage}. Revisa los nombres en el CSV.")
+            raise RuntimeError(f"No se pudo cargar ningún par de audios en {self.audio_root}")
+        
+        print(f"Cargadas {len(self.audio_data)} muestras con éxito.")
 
     def __getitem__(self, idx):
         return self.audio_data[idx], self.params[idx]
