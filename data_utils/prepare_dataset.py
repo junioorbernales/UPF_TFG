@@ -91,16 +91,15 @@ def prepare_dataset(data_root, output_root, segment_sec=1.0, sr=44100):
     print(f"\nProceso finalizado. Metadatos guardados en {output_root}/metadata.csv")
 
 if __name__ == "__main__":
-    # 1. Definimos las rutas relativas desde la raíz del proyecto
-    # Si ejecutas el script DESDE la carpeta data_utils, usa '../data'
-    # Si lo ejecutas desde la RAÍZ del repo, usa 'data'
     DATA_PATH = 'data' 
     OUTPUT_PATH = 'data_ready'
 
     if not os.path.exists(DATA_PATH):
-        print(f"ERROR: No se encuentra la carpeta {DATA_PATH}. Revisa tu ubicación.")
+        print(f"ERROR: No se encuentra la carpeta {DATA_PATH}.")
     else:
         prepare_dataset(
             data_root=DATA_PATH, 
             output_root=OUTPUT_PATH,
+            segment_sec=2.0, # Correcto para ver el Release
+            sr=16000,        # <--- ¡Añade esto! Coincide con tu entrenamiento
         )
