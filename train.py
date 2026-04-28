@@ -8,9 +8,9 @@ import os
 
 # --- Configuración ---
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-BATCH_SIZE = 16
+BATCH_SIZE = 8
 LR = 5e-4       # Subimos ligeramente el LR inicial para salir de la "zona plana"
-EPOCHS = 100    # Aumentamos épocas para permitir mayor refinamiento
+EPOCHS = 200    # Aumentamos épocas para permitir mayor refinamiento
 AUDIO_ROOT = 'data_ready'
 METADATA_CSV = 'data_ready/metadata.csv'
 
@@ -50,8 +50,14 @@ def main():
     train_ds = CompressorDataset(METADATA_CSV, AUDIO_ROOT, stage='train', duration_samples=32000)
     val_ds = CompressorDataset(METADATA_CSV, AUDIO_ROOT, stage='val', duration_samples=32000)
     
-    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=0)
-    val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
+    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=2)
+    val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=2)
+
+    # 1. Crea listas para guardar la historia
+    history = {
+        'train_loss': [],
+        'val_loss': []
+    }
 
     print(f"Cargando arquitectura: {MODEL_TYPE}...")
     
@@ -76,6 +82,10 @@ def main():
         
         train_loss = train_epoch(model, train_loader, optimizer, criterion, DEVICE)
         val_loss = validate(model, val_loader, criterion, DEVICE)
+
+        # 2. Guarda los valores
+        history['train_loss'].append(train_loss)
+        history['val_loss'].append(val_loss)
         
         # Actualizamos el scheduler con la pérdida de validación
         scheduler.step(val_loss)
@@ -89,6 +99,24 @@ def main():
             save_path = f'best_model_regressor_{MODEL_TYPE.lower()}.pth'
             torch.save(model.state_dict(), save_path) 
             print(f"⭐ ¡Nuevo récord! Modelo guardado en {save_path}")
+
+    # 3. Al final de todas las épocas, guarda el historial a un CSV o JSON
+    import pandas as pd
+    pd.DataFrame(history).to_csv('training_history.csv', index=False)
+    print("✅ Historial de entrenamiento guardado en training_history.csv")
+
+    # 4. Opcional: Graficar la historia de pérdidas
+    import matplotlib.pyplot as plt
+    plt.figure(figsize=(10, 5))
+    plt.plot(history['train_loss'], label='Train Loss')
+    plt.plot(history['val_loss'], label='Val Loss')
+    plt.title('Curva de Pérdida (Loss)')
+    plt.xlabel('Época')
+    plt.ylabel('MAE')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig('loss_curve.png') # Se guarda como imagen automáticamente
+    print("📈 Gráfica de pérdida guardada como loss_curve.png")
 
 if __name__ == "__main__":
     main()
