@@ -50,8 +50,8 @@ def main():
     train_ds = CompressorDataset(METADATA_CSV, AUDIO_ROOT, stage='train', duration_samples=32000)
     val_ds = CompressorDataset(METADATA_CSV, AUDIO_ROOT, stage='val', duration_samples=32000)
     
-    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=2)
-    val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=2)
+    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=4)
+    val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
 
     # 1. Crea listas para guardar la historia
     history = {
