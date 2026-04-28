@@ -20,7 +20,7 @@ class TCNBlock(nn.Module):
         return self.dropout(self.relu(self.bn(out)))
 
 class TCNRegressor(nn.Module):
-    def __init__(self, n_inputs=2, n_outputs=2, num_channels=[64, 128, 256, 512], kernel_size=5, dropout=0.2):
+    def __init__(self, n_inputs=2, n_outputs=2, num_channels=[64, 64, 128, 128, 256, 256, 512], kernel_size=5, dropout=0.2):
         super(TCNRegressor, self).__init__()
         
         layers = []
