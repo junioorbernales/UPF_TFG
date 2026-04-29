@@ -18,10 +18,38 @@ Es fundamental mantener la siguiente jerarquía para que los scripts localicen l
 ```text
 /UPF_TFG
 │
-├── /data
-│   ├── /raw_input     <-- Audios originales (Dry)
-│   └── /processed     <-- Salidas del compresor con variaciones (Wet)
+├── /data                 <-- Audios base (No sincronizados en Git)
+│   ├── /raw_input        <-- Señales originales sin procesar (Dry)
+│   └── /processed        <-- Señales procesadas por hardware/software (Wet)
 │
-├── /data_ready        <-- Generada automáticamente (Ignorada por Git)
-└── /data_utils
-    └── prepare_dataset.py
+├── /data_ready           <-- Generado automáticamente (Ignorado por Git)
+│   ├── /train            <-- Pares input/target para entrenamiento
+│   └── /val              <-- Pares input/target para validación
+│
+├── /data_utils
+│   ├── dataset.py        <-- Clase Loader (Carga dinámica y padding)
+│   └── prepare_dataset.py <-- Script de segmentación y normalización
+│
+├── /models
+│   ├── tcn.py            <-- Arquitectura Temporal Convolutional Network
+│   └── lstm.py           <-- Arquitectura Long Short-Term Memory
+│
+├── train.py              <-- Script principal de entrenamiento y evaluación
+└── README.md
+```
+
+### 2. Preparación de los Datos
+Antes de iniciar el entrenamiento, los audios deben ser procesados para asegurar coherencia temporal y espectral. El script de preparación realiza el resampling a **16kHz** y segmenta los archivos en fragmentos de **2 segundos**.
+
+```python
+python data_utils/prepare_dataset.py
+```
+*Este comando generará la carpeta <u>/data_ready</u> y el archivo <u>metadata.csv</u> con las etiquetas de Attack y Release.*
+
+### 3. Entrenamiento del Modelo
+El entrenamiento está optimizado para comparar la eficacia de las redes **TCN** frente a las **LSTM**. Para lanzar el proceso con la configuración de 7 capas:
+
+```python
+python train.py
+```
+*Los resultados (Curvas de Loss y Scatter Plots) se guardarán automáticamente al finalizar las épocas definidas.*
