@@ -10,7 +10,7 @@ import os
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 BATCH_SIZE = 8
 LR = 3e-4       # Subimos ligeramente el LR inicial para salir de la "zona plana"
-EPOCHS = 200    # Aumentamos épocas para permitir mayor refinamiento
+EPOCHS = 20    # Aumentamos épocas para permitir mayor refinamiento
 AUDIO_ROOT = 'data_ready'
 METADATA_CSV = 'data_ready/metadata.csv'
 
@@ -73,7 +73,7 @@ def main():
     
     # NUEVO: Programador de Learning Rate
     # Si la pérdida no mejora en 5 épocas, reduce el LR a la mitad.
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3)
 
     best_val_loss = float('inf')
     

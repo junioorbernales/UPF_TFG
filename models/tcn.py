@@ -22,7 +22,7 @@ class TCNBlock(nn.Module):
         return out + res  # <--- AQUÍ ESTÁ LA MAGIA: SUMAMOS LA ENTRADA
 
 class TCNRegressor(nn.Module):
-    def __init__(self, n_inputs=2, n_outputs=2, num_channels=[64, 64, 128, 128, 256, 256, 512], kernel_size=5, dropout=0.2):
+    def __init__(self, n_inputs=2, n_outputs=2, num_channels=[64, 64, 128, 128, 256, 256, 512], kernel_size=7, dropout=0.2):
         super(TCNRegressor, self).__init__()
         
         layers = []

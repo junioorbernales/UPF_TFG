@@ -1,4 +1,4 @@
-# Modeling Audio Compression using Temporal Convolutional Networks (TCN) 🌊🎚️
+# Modeling Audio Compression using Temporal Convolutional Networks (TCN)
 
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/Framework-PyTorch-ee4c2c.svg)](https://pytorch.org/)
