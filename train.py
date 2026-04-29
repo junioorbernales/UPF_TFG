@@ -9,7 +9,7 @@ import os
 # --- Configuración ---
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 BATCH_SIZE = 8
-LR = 5e-4       # Subimos ligeramente el LR inicial para salir de la "zona plana"
+LR = 3e-4       # Subimos ligeramente el LR inicial para salir de la "zona plana"
 EPOCHS = 200    # Aumentamos épocas para permitir mayor refinamiento
 AUDIO_ROOT = 'data_ready'
 METADATA_CSV = 'data_ready/metadata.csv'

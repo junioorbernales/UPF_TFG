@@ -1,0 +1,12 @@
+# --- Dataset y Datos Crudos ---
+data/
+data_ready/
+
+# --- Archivos generados por el entrenamiento ---
+*.csv
+*.pth
+*.png
+
+# --- Logs y temporales ---
+__pycache__/
+.DS_Store
