@@ -5,31 +5,33 @@ from torch.utils.data import DataLoader
 from data_utils.dataset import CompressorDataset
 from tqdm import tqdm
 import os
+import pandas as pd
+import matplotlib.pyplot as plt
 
 # --- Configuración ---
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-BATCH_SIZE = 8
-LR = 3e-4       # Subimos ligeramente el LR inicial para salir de la "zona plana"
-EPOCHS = 20    # Aumentamos épocas para permitir mayor refinamiento
+BATCH_SIZE = 4  # Reducido para mayor estabilidad con LSTM
+LR = 3e-4 
+EPOCHS = 50     # Aumentado para ver el efecto del Scheduler con tiempo
 AUDIO_ROOT = 'data_ready'
 METADATA_CSV = 'data_ready/metadata.csv'
+
+# CAMBIA ESTO PARA ENTRENAR UNO U OTRO
+MODEL_TYPE = "LSTM" # Opciones: "TCN" o "LSTM"
 
 def train_epoch(model, loader, optimizer, criterion, device):
     model.train()
     running_loss = 0.0
-    
     for inputs, targets_params in tqdm(loader, desc="Training"):
         inputs, targets_params = inputs.to(device), targets_params.to(device)
         
         optimizer.zero_grad()
         predictions = model(inputs) 
-        
         loss = criterion(predictions, targets_params) 
         
         loss.backward()
         optimizer.step()
         running_loss += loss.item()
-    
     return running_loss / len(loader)
 
 def validate(model, loader, criterion, device):
@@ -41,25 +43,19 @@ def validate(model, loader, criterion, device):
             predictions = model(inputs)
             loss = criterion(predictions, targets_params)
             running_loss += loss.item()
-            
     return running_loss / len(loader)
 
 def main():
-    MODEL_TYPE = "TCN" 
-    
     train_ds = CompressorDataset(METADATA_CSV, AUDIO_ROOT, stage='train', duration_samples=32000)
     val_ds = CompressorDataset(METADATA_CSV, AUDIO_ROOT, stage='val', duration_samples=32000)
     
-    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=4)
-    val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
+    # num_workers=0 es más seguro en Windows para evitar errores de memoria compartida
+    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=0)
+    val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
 
-    # 1. Crea listas para guardar la historia
-    history = {
-        'train_loss': [],
-        'val_loss': []
-    }
+    history = {'train_loss': [], 'val_loss': []}
 
-    print(f"Cargando arquitectura: {MODEL_TYPE}...")
+    print(f"\n🚀 Iniciando entrenamiento: {MODEL_TYPE}")
     
     if MODEL_TYPE == "TCN":
         from models.tcn import TCNRegressor 
@@ -71,9 +67,8 @@ def main():
     criterion = nn.L1Loss() 
     optimizer = optim.Adam(model.parameters(), lr=LR)
     
-    # NUEVO: Programador de Learning Rate
-    # Si la pérdida no mejora en 5 épocas, reduce el LR a la mitad.
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3)
+    # Programador: paciencia de 5 épocas para un entrenamiento más largo
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5, verbose=True)
 
     best_val_loss = float('inf')
     
@@ -83,40 +78,34 @@ def main():
         train_loss = train_epoch(model, train_loader, optimizer, criterion, DEVICE)
         val_loss = validate(model, val_loader, criterion, DEVICE)
 
-        # 2. Guarda los valores
         history['train_loss'].append(train_loss)
         history['val_loss'].append(val_loss)
         
-        # Actualizamos el scheduler con la pérdida de validación
         scheduler.step(val_loss)
         
-        # Obtener LR actual para el log
         current_lr = optimizer.param_groups[0]['lr']
         print(f"Loss -> Train: {train_loss:.6f} | Val: {val_loss:.6f} | LR: {current_lr}")
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss
-            save_path = f'best_model_regressor_{MODEL_TYPE.lower()}.pth'
+            save_path = f'best_model_{MODEL_TYPE.lower()}.pth'
             torch.save(model.state_dict(), save_path) 
             print(f"⭐ ¡Nuevo récord! Modelo guardado en {save_path}")
 
-    # 3. Al final de todas las épocas, guarda el historial a un CSV o JSON
-    import pandas as pd
-    pd.DataFrame(history).to_csv('training_history.csv', index=False)
-    print("✅ Historial de entrenamiento guardado en training_history.csv")
-
-    # 4. Opcional: Graficar la historia de pérdidas
-    import matplotlib.pyplot as plt
+    # Guardar historial específico
+    pd.DataFrame(history).to_csv(f'history_{MODEL_TYPE.lower()}.csv', index=False)
+    
+    # Graficar y guardar con nombre del modelo
     plt.figure(figsize=(10, 5))
     plt.plot(history['train_loss'], label='Train Loss')
     plt.plot(history['val_loss'], label='Val Loss')
-    plt.title('Curva de Pérdida (Loss)')
+    plt.title(f'Curva de Pérdida - {MODEL_TYPE}')
     plt.xlabel('Época')
     plt.ylabel('MAE')
     plt.legend()
     plt.grid(True)
-    plt.savefig('loss_curve.png') # Se guarda como imagen automáticamente
-    print("📈 Gráfica de pérdida guardada como loss_curve.png")
+    plt.savefig(f'loss_curve_{MODEL_TYPE.lower()}.png')
+    print(f"✅ Proceso finalizado para {MODEL_TYPE}. Gráfica guardada.")
 
 if __name__ == "__main__":
     main()
