@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 BATCH_SIZE = 4  # Reducido para mayor estabilidad con LSTM
 LR = 3e-4 
-EPOCHS = 50     # Aumentado para ver el efecto del Scheduler con tiempo
+EPOCHS = 20     # Aumentado para ver el efecto del Scheduler con tiempo
 AUDIO_ROOT = 'data_ready'
 METADATA_CSV = 'data_ready/metadata.csv'
 
