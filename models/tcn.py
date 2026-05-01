@@ -10,44 +10,68 @@ class TCNBlock(nn.Module):
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout(dropout)
         
-        # Conexión residual para que el gradiente fluya
+        # Conexión residual
         self.res_connection = nn.Conv1d(in_ch, out_ch, 1) if in_ch != out_ch else nn.Identity()
+        self.padding = padding
 
     def forward(self, x):
-        res = self.res_connection(x) # Guardamos la entrada traducida
+        res = self.res_connection(x)
         out = self.conv(x)
-        if self.conv.padding[0] > 0:
-            out = out[:, :, :-self.conv.padding[0]]
+        if self.padding > 0:
+            out = out[:, :, :-self.padding]
         out = self.dropout(self.relu(self.bn(out)))
-        return out + res  # <--- AQUÍ ESTÁ LA MAGIA: SUMAMOS LA ENTRADA
+        return out + res
+
 
 class TCNRegressor(nn.Module):
-    def __init__(self, n_inputs=2, n_outputs=2, num_channels=[64, 64, 128, 128, 256, 256, 512], kernel_size=7, dropout=0.2):
-        super(TCNRegressor, self).__init__()
+    def __init__(self, n_inputs=2, n_outputs=2, dropout=0.5, kernel_size=3):
+        super().__init__()
         
-        layers = []
-        in_ch = n_inputs
-        # Incrementamos la dilatación exponencialmente: 1, 2, 4, 8...
-        for i in range(len(num_channels)):
-            dilation = 2 ** i 
-            out_ch = num_channels[i]
-            layers.append(TCNBlock(in_ch, out_ch, kernel_size, dilation, dropout))
-            in_ch = out_ch
-            
-        self.network = nn.Sequential(*layers)
+        self.kernel_size = kernel_size
         
-        # Regresor final optimizado
-        self.classifier = nn.Sequential(
-            nn.AdaptiveAvgPool1d(1), 
-            nn.Flatten(),
-            nn.Linear(num_channels[-1], 64),
+        # Downsampling
+        self.downsample = nn.Sequential(
+            nn.Conv1d(n_inputs, 16, kernel_size=7, stride=4, padding=3),
+            nn.BatchNorm1d(16),
             nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(64, n_outputs),
-            nn.Sigmoid() # CRÍTICO: Mantiene la salida entre 0 y 1 para coincidir con tus targets normalizados
+            nn.Dropout(dropout),
+            nn.Conv1d(16, 32, kernel_size=5, stride=4, padding=2),
+            nn.BatchNorm1d(32),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Conv1d(32, 64, kernel_size=3, stride=2, padding=1),
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+            nn.Dropout(dropout),
         )
-
+        
+        # TCN ligero
+        layers = []
+        in_ch = 64
+        num_channels = [128, 128]
+        
+        for i, out_ch in enumerate(num_channels):
+            dilation = 2 ** i
+            layers.append(TCNBlock(in_ch, out_ch, kernel_size=self.kernel_size, dilation=dilation, dropout=dropout))
+            in_ch = out_ch
+        
+        self.tcn = nn.Sequential(*layers)
+        
+        # Clasificador
+        self.classifier = nn.Sequential(
+            nn.AdaptiveAvgPool1d(1),
+            nn.Flatten(),
+            nn.Linear(num_channels[-1], 32),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(32, 16),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(16, n_outputs),
+            nn.Sigmoid()
+        )
+    
     def forward(self, x):
-        features = self.network(x)
-        params = self.classifier(features)
-        return params
+        x = self.downsample(x)
+        x = self.tcn(x)
+        return self.classifier(x)
