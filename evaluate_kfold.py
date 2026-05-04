@@ -15,20 +15,24 @@ BATCH_SIZE = 8
 K_FOLDS = 5
 AUDIO_ROOT = 'data_ready'
 METADATA_CSV = 'data_ready/metadata.csv'
-MODEL_TYPE = "TCN"  # Cambiar a "LSTM" si entrenaste con ese modelo
+MODEL_TYPE = "CNN"  # Cambiar a "LSTM" si entrenaste con ese modelo
 DURATION_SAMPLES = 32000
 MODEL_SUFFIX = MODEL_TYPE.lower()  # Sufijo dinámico para archivos
 
-# Constantes de des-normalización (ajustar si usaste otras en el dataset)
-NORM_ATTACK = 30.0
-NORM_RELEASE = 1.2
+# NOTA: Ya no usamos NORM_ATTACK/RELEASE fijos porque la escala es Log10(x+1)
+# Mantengo las variables por estructura, pero la lógica de des-normalización cambia abajo.
 
 def instantiate_model(model_type, device):
     """Crea la arquitectura exacta usada durante el entrenamiento."""
     if model_type == "TCN":
-        from models.tcn_small import TCNRegressorSmall as TCNRegressor
         #from models.tcn import TCNRegressor
-        model = TCNRegressor(n_inputs=2, n_outputs=2, dropout=0.3).to(device)
+        #from models.tcn_small import TCNRegressorSmall as TCNRegressor
+        from models.tcn_optimized import TCNRegressorOptimized as TCNRegressor
+        model = TCNRegressor(n_inputs=3, n_outputs=2, dropout=0.3).to(device)
+    # Dentro del bucle de folds, donde eliges el modelo:
+    if MODEL_TYPE == "CNN":
+        from models.cnn import CNNRegressor # Asegúrate de que el nombre coincide con tu archivo
+        model = CNNRegressor(n_outputs=2).to(DEVICE)
     else:
         from models.lstm_small import LSTMRegressorSmall as LSTMRegressor
         model = LSTMRegressor(input_size=2, n_outputs=2).to(device)
@@ -68,8 +72,8 @@ def main():
     full_dataset = CompressorDataset(METADATA_CSV, AUDIO_ROOT, stage='all', duration_samples=DURATION_SAMPLES)
     kfold = KFold(n_splits=K_FOLDS, shuffle=True, random_state=42)
     
-    all_preds_norm = []
-    all_targets_norm = []
+    all_preds_log = []
+    all_targets_log = []
     fold_results = []
     
     print(f"📦 Total muestras en dataset: {len(full_dataset)}\n")
@@ -94,35 +98,39 @@ def main():
         
         # Evaluar
         preds, targets = evaluate_fold(model, val_loader, DEVICE)
-        all_preds_norm.append(preds)
-        all_targets_norm.append(targets)
+        all_preds_log.append(preds)
+        all_targets_log.append(targets)
         
-        # Métricas normalizadas del fold
-        mae_norm = np.mean(np.abs(preds - targets), axis=0)
+        # Métricas en escala logarítmica del fold
+        mae_log = np.mean(np.abs(preds - targets), axis=0)
         fold_results.append({
             'fold': fold+1, 
             'n_samples': len(val_idx),
-            'mae_attack_norm': mae_norm[0], 
-            'mae_release_norm': mae_norm[1]
+            'mae_attack_log': mae_log[0], 
+            'mae_release_log': mae_log[1]
         })
-        print(f"   ✅ MAE (norm): Attack={mae_norm[0]:.4f}, Release={mae_norm[1]:.4f}")
+        print(f"   ✅ MAE (log): Attack={mae_log[0]:.4f}, Release={mae_log[1]:.4f}")
         
-    if not all_preds_norm:
+    if not all_preds_log:
         print("❌ No se encontró ningún modelo para evaluar. Verifica los nombres de archivo.")
         return
 
-    # 3. Agregar resultados y des-normalizar
-    all_preds_norm = np.concatenate(all_preds_norm, axis=0)
-    all_targets_norm = np.concatenate(all_targets_norm, axis=0)
+# 3. Agregar resultados y des-normalizar linealmente [0, 1] -> Escala real
+    all_preds_norm = np.concatenate(all_preds_log, axis=0)
+    all_targets_norm = np.concatenate(all_targets_log, axis=0)
     
-    all_preds = all_preds_norm.copy()
-    all_targets = all_targets_norm.copy()
-    all_preds[:, 0] *= NORM_ATTACK
-    all_targets[:, 0] *= NORM_ATTACK
-    all_preds[:, 1] *= NORM_RELEASE
-    all_targets[:, 1] *= NORM_RELEASE
+    all_preds = np.zeros_like(all_preds_norm)
+    all_targets = np.zeros_like(all_targets_norm)
 
-    # 4. Métricas globales
+    # Des-normalización Attack: de [0, 1] a [0, 30] ms
+    all_preds[:, 0] = all_preds_norm[:, 0] * 30.0
+    all_targets[:, 0] = all_targets_norm[:, 0] * 30.0
+
+    # Des-normalización Release: de [0, 1] a [0, 1.2] s
+    all_preds[:, 1] = all_preds_norm[:, 1] * 1.2
+    all_targets[:, 1] = all_targets_norm[:, 1] * 1.2
+
+    # 4. Métricas globales en escala real
     mae = np.mean(np.abs(all_targets - all_preds), axis=0)
     
     ss_res_a = np.sum((all_targets[:, 0] - all_preds[:, 0]) ** 2)
@@ -159,7 +167,7 @@ def main():
     
     # Attack
     ax1.scatter(all_targets[:, 0], all_preds[:, 0], alpha=0.5, color='royalblue', edgecolors='w', s=25)
-    lim_a = [min(all_targets[:, 0].min(), all_preds[:, 0].min()), max(all_targets[:, 0].max(), all_preds[:, 0].max())]
+    lim_a = [0, 30] # Rango fijo para Attack
     ax1.plot(lim_a, lim_a, 'r--', lw=2, label='Línea ideal')
     ax1.set_xlabel('Valor Real (ms)')
     ax1.set_ylabel('Predicción (ms)')
@@ -169,7 +177,7 @@ def main():
     
     # Release
     ax2.scatter(all_targets[:, 1], all_preds[:, 1], alpha=0.5, color='forestgreen', edgecolors='w', s=25)
-    lim_r = [min(all_targets[:, 1].min(), all_preds[:, 1].min()), max(all_targets[:, 1].max(), all_preds[:, 1].max())]
+    lim_r = [0, 1.2] # Rango fijo para Release
     ax2.plot(lim_r, lim_r, 'r--', lw=2, label='Línea ideal')
     ax2.set_xlabel('Valor Real (s)')
     ax2.set_ylabel('Predicción (s)')

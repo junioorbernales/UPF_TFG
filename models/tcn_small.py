@@ -8,13 +8,13 @@ class TCNRegressorSmall(nn.Module):
         
         # Downsampling muy agresivo
         self.downsample = nn.Sequential(
-            nn.Conv1d(n_inputs, 8, kernel_size=7, stride=4, padding=3),
+            nn.Conv1d(n_inputs, 8, kernel_size=9, stride=2, padding=3),
             nn.BatchNorm1d(8),
             nn.ReLU(),
-            nn.Conv1d(8, 16, kernel_size=5, stride=4, padding=2),
+            nn.Conv1d(8, 16, kernel_size=7, stride=2, padding=2),
             nn.BatchNorm1d(16),
-            nn.ReLU(),
-            nn.AdaptiveAvgPool1d(100),  # Forzar longitud pequeña
+            nn.ReLU()
+            #nn.AdaptiveAvgPool1d(100),  # Forzar longitud pequeña
         )
         
         # Solo 1 bloque convolucional (no TCN complejo)
