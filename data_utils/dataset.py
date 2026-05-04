@@ -101,26 +101,36 @@ class CompressorDataset(Dataset):
 
 class CompressorDatasetWithAugmentation(CompressorDataset):
     def __init__(self, csv_path, audio_root, stage='train', 
-                 duration_samples=32000, augmentation_prob=0.5):
-        super().__init__(csv_path, audio_root, stage, duration_samples)
+                 target_sr=16000, duration_samples=32000, augmentation_prob=0.5):
+        super().__init__(csv_path, audio_root, stage, target_sr, duration_samples)
         self.augmentation_prob = augmentation_prob
     
     def __getitem__(self, idx):
-        # 1. Obtener audio original
+        # 1. Obtener audio original (ya viene normalizado de pico 1.0 por get_audio_pair)
         audio_dry, audio_wet = self.get_audio_pair(idx)
         
         # 2. Aplicar aumentación solo en entrenamiento y por probabilidad
-        if self.stage == 'train' and np.random.random() < self.augmentation_prob:
-            # Añadir ruido blanco suave (idéntico a ambos canales)
-            noise_std = np.random.uniform(0.001, 0.005)
-            noise = np.random.normal(0, noise_std, audio_dry.shape)
+        if (self.stage == 'train' or self.stage == 'all') and np.random.random() < self.augmentation_prob:
+            
+            # --- Aumentación A: Variación de Ganancia Global ---
+            # Esto enseña al modelo que el Attack/Release es independiente del volumen de entrada
+            gain = np.random.uniform(0.5, 1.0) # Bajamos volumen aleatoriamente
+            audio_dry *= gain
+            audio_wet *= gain
+
+            # --- Aumentación B: Ruido Blanco (Dither) ---
+            # Ayuda a que el modelo no se obsesione con silencios perfectos
+            # El ruido debe ser muy tenue para no tapar la reducción de ganancia
+            noise_std = np.random.uniform(0.0005, 0.002) 
+            noise = np.random.normal(0, noise_std, audio_dry.shape).astype(np.float32)
             audio_dry += noise
             audio_wet += noise
             
-            # Variación de ganancia global
-            gain = np.random.uniform(0.7, 1.1)
-            audio_dry *= gain
-            audio_wet *= gain
+            # --- Aumentación C: Inversión de Fase (Polaridad) ---
+            # Un truco clásico en audio: al modelo no le debería importar si la onda va hacia arriba o abajo
+            if np.random.random() < 0.5:
+                audio_dry *= -1
+                audio_wet *= -1
         
         # 3. Procesar a espectrograma
         return self.process_to_spectrogram(audio_dry, audio_wet, idx)

@@ -5,6 +5,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, Subset
 from sklearn.model_selection import KFold
 from data_utils.dataset import CompressorDataset
+from data_utils.dataset import CompressorDatasetWithAugmentation
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
@@ -30,7 +31,18 @@ def train_epoch(model, loader, optimizer, criterion, device):
         inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()
         predictions = model(inputs)
-        loss = criterion(predictions, targets)
+        
+        # --- SUSTITUCIÓN: Pérdida Ponderada ---
+        # loss = criterion(predictions, targets) # ← Línea original sustituida
+        
+        # Calculamos pérdidas individuales para cada parámetro (normalizadas 0-1)
+        loss_attack = criterion(predictions[:, 0], targets[:, 0])
+        loss_release = criterion(predictions[:, 1], targets[:, 1])
+        
+        # Balanceamos: 35% peso al Attack, 65% peso al Release para forzar aprendizaje en la "cola"
+        loss = (0.35 * loss_attack) + (0.65 * loss_release)
+        # ----------------------------------------
+        
         loss.backward()
         optimizer.step()
         running_loss += loss.item()
@@ -43,12 +55,22 @@ def validate(model, loader, criterion, device):
         for inputs, targets in loader:
             inputs, targets = inputs.to(device), targets.to(device)
             predictions = model(inputs)
-            loss = criterion(predictions, targets)
+            
+            # --- SUSTITUCIÓN: Pérdida Ponderada ---
+            # loss = criterion(predictions, targets) # ← Línea original sustituida
+            
+            # Usamos la misma ponderación en validación para ser consistentes
+            loss_attack = criterion(predictions[:, 0], targets[:, 0])
+            loss_release = criterion(predictions[:, 1], targets[:, 1])
+            loss = (0.35 * loss_attack) + (0.65 * loss_release)
+            # ----------------------------------------
+            
             running_loss += loss.item()
     return running_loss / len(loader)
 
 def main():
-    full_dataset = CompressorDataset(METADATA_CSV, AUDIO_ROOT, stage='all', duration_samples=32000)
+    #full_dataset = CompressorDataset(METADATA_CSV, AUDIO_ROOT, stage='all', duration_samples=32000)
+    full_dataset = CompressorDatasetWithAugmentation(METADATA_CSV, AUDIO_ROOT, stage='all', duration_samples=32000, augmentation_prob=0.5)
     kfold = KFold(n_splits=K_FOLDS, shuffle=True, random_state=42)
     
     fold_results = []
