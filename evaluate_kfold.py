@@ -15,7 +15,7 @@ BATCH_SIZE = 8
 K_FOLDS = 5
 AUDIO_ROOT = 'data_ready'
 METADATA_CSV = 'data_ready/metadata.csv'
-MODEL_TYPE = "CNN"  # Cambiar a "LSTM" si entrenaste con ese modelo
+MODEL_TYPE = "LSTM"  # Cambiar a "LSTM" si entrenaste con ese modelo
 DURATION_SAMPLES = 32000
 MODEL_SUFFIX = MODEL_TYPE.lower()  # Sufijo dinámico para archivos
 
@@ -30,12 +30,12 @@ def instantiate_model(model_type, device):
         from models.tcn_optimized import TCNRegressorOptimized as TCNRegressor
         model = TCNRegressor(n_inputs=3, n_outputs=2, dropout=0.3).to(device)
     # Dentro del bucle de folds, donde eliges el modelo:
-    if MODEL_TYPE == "CNN":
+    elif MODEL_TYPE == "CNN":
         from models.cnn import CNNRegressor # Asegúrate de que el nombre coincide con tu archivo
         model = CNNRegressor(n_outputs=2).to(DEVICE)
     else:
         from models.lstm_small import LSTMRegressorSmall as LSTMRegressor
-        model = LSTMRegressor(input_size=2, n_outputs=2).to(device)
+        model = LSTMRegressor(n_outputs=2).to(device)
     return model
 
 def load_model_weights(model, checkpoint_path, device):

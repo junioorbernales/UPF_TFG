@@ -73,8 +73,8 @@ class CompressorDataset(Dataset):
         mel_spec = librosa.feature.melspectrogram(
             y=gain_reduction, 
             sr=self.target_sr, 
-            n_mels=96,        # Subimos de 64 a 96 para más detalle
-            hop_length=128,   # Bajamos de 256 a 128 (Doble resolución temporal)
+            n_mels=128,        # Subimos de 64 a 96 para más detalle
+            hop_length=64,   # Bajamos de 256 a 128 (Doble resolución temporal)
             fmin=20,          # Rango audible
             fmax=8000
         )
@@ -134,3 +134,47 @@ class CompressorDatasetWithAugmentation(CompressorDataset):
         
         # 3. Procesar a espectrograma
         return self.process_to_spectrogram(audio_dry, audio_wet, idx)
+
+class CompressorClassifierDataset(CompressorDatasetWithAugmentation):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.attack_labels = [0.1, 0.3, 1.0, 3.0, 10.0, 30.0] 
+        self.release_labels = [0.1, 0.3, 0.6, 1.2]
+        self.a_to_idx = {float(v): i for i, v in enumerate(self.attack_labels)}
+        self.r_to_idx = {float(v): i for i, v in enumerate(self.release_labels)}
+
+    def __getitem__(self, idx):
+        audio_dry, audio_wet = self.get_audio_pair(idx)
+        
+        if (self.stage in ['train', 'all']) and np.random.random() < self.augmentation_prob:
+            # 1. TIME SHIFTING (Crucial para el Attack)
+            shift = np.random.randint(0, 4000)
+            audio_dry = np.roll(audio_dry, shift)
+            audio_wet = np.roll(audio_wet, shift)
+
+            # 2. GANANCIA AGRESIVA (Rango ampliado)
+            gain = np.random.uniform(0.2, 1.0)
+            audio_dry *= gain
+            audio_wet *= gain
+
+            # 3. RUIDO VARIABLE
+            noise_std = np.random.uniform(0.0001, 0.004) 
+            noise = np.random.normal(0, noise_std, audio_dry.shape).astype(np.float32)
+            audio_dry += noise
+            audio_wet += noise
+            
+            if np.random.random() < 0.5:
+                audio_dry *= -1
+                audio_wet *= -1
+        
+        # Etiquetas e índices
+        raw_a = self.metadata.iloc[idx]['attack']
+        raw_r = self.metadata.iloc[idx]['release']
+        label_a = self.a_to_idx[float(raw_a)]
+        label_r = self.r_to_idx[float(raw_r)]
+
+        # Procesamiento a espectrograma (usará 128 mels / 64 hop según tu clase base)
+        spec_tensor, _ = self.process_to_spectrogram(audio_dry, audio_wet, idx)
+        targets = torch.tensor([label_a, label_r], dtype=torch.long)
+        
+        return spec_tensor, targets

@@ -15,16 +15,31 @@ import matplotlib.pyplot as plt
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 BATCH_SIZE = 8
 LR = 5e-5
-EPOCHS = 100
+EPOCHS = 150
 K_FOLDS = 5  # Validación cruzada con 5 folds
 AUDIO_ROOT = 'data_ready'
 METADATA_CSV = 'data_ready/metadata.csv'
-MODEL_TYPE = "CNN"
+MODEL_TYPE = "LSTM"
 
 def log_cosh_loss(y_pred, y_true):
     return torch.mean(torch.log(torch.cosh(y_pred - y_true + 1e-12)))
 
-def train_epoch(model, loader, optimizer, criterion, device):
+def combined_loss(y_pred, y_true, weight_attack=0.35, weight_release=0.65):
+    # Componente MSE: Castiga errores grandes (mejora R²)
+    mse_attack = torch.nn.functional.mse_loss(y_pred[:, 0], y_true[:, 0])
+    mse_release = torch.nn.functional.mse_loss(y_pred[:, 1], y_true[:, 1])
+    
+    # Componente L1: Ajuste fino y estabilidad
+    l1_attack = torch.nn.functional.l1_loss(y_pred[:, 0], y_true[:, 0])
+    l1_release = torch.nn.functional.l1_loss(y_pred[:, 1], y_true[:, 1])
+    
+    # Combinación 70% MSE / 30% L1
+    loss_attack = 0.7 * mse_attack + 0.3 * l1_attack
+    loss_release = 0.7 * mse_release + 0.3 * l1_release
+    
+    return (weight_attack * loss_attack) + (weight_release * loss_release)
+
+def train_epoch(model, loader, optimizer, device, MODEL_TYPE):
     model.train()
     running_loss = 0.0
     for inputs, targets in tqdm(loader, desc="Training", leave=False):
@@ -32,23 +47,27 @@ def train_epoch(model, loader, optimizer, criterion, device):
         optimizer.zero_grad()
         predictions = model(inputs)
         
-        # --- SUSTITUCIÓN: Pérdida Ponderada ---
-        # loss = criterion(predictions, targets) # ← Línea original sustituida
-        
-        # Calculamos pérdidas individuales para cada parámetro (normalizadas 0-1)
-        loss_attack = criterion(predictions[:, 0], targets[:, 0])
-        loss_release = criterion(predictions[:, 1], targets[:, 1])
-        
-        # Balanceamos: 35% peso al Attack, 65% peso al Release para forzar aprendizaje en la "cola"
-        loss = (0.35 * loss_attack) + (0.65 * loss_release)
-        # ----------------------------------------
+        # --- CONDICIONAL DE LOSS ---
+        if MODEL_TYPE == "LSTM":
+            loss = combined_loss(predictions, targets)
+        else:
+            # --- SUSTITUCIÓN: Pérdida Ponderada ---
+            # loss = criterion(predictions, targets) # ← Línea original sustituida
+            
+            # Calculamos pérdidas individuales para cada parámetro (normalizadas 0-1)
+            loss_attack = log_cosh_loss(predictions[:, 0], targets[:, 0])
+            loss_release = log_cosh_loss(predictions[:, 1], targets[:, 1])
+            
+            # Balanceamos: 35% peso al Attack, 65% peso al Release para forzar aprendizaje en la "cola"
+            loss = (0.35 * loss_attack) + (0.65 * loss_release)
+            # ----------------------------------------
         
         loss.backward()
         optimizer.step()
         running_loss += loss.item()
     return running_loss / len(loader)
 
-def validate(model, loader, criterion, device):
+def validate(model, loader, device, MODEL_TYPE):
     model.eval()
     running_loss = 0.0
     with torch.no_grad():
@@ -56,14 +75,18 @@ def validate(model, loader, criterion, device):
             inputs, targets = inputs.to(device), targets.to(device)
             predictions = model(inputs)
             
-            # --- SUSTITUCIÓN: Pérdida Ponderada ---
-            # loss = criterion(predictions, targets) # ← Línea original sustituida
-            
-            # Usamos la misma ponderación en validación para ser consistentes
-            loss_attack = criterion(predictions[:, 0], targets[:, 0])
-            loss_release = criterion(predictions[:, 1], targets[:, 1])
-            loss = (0.35 * loss_attack) + (0.65 * loss_release)
-            # ----------------------------------------
+            # --- CONDICIONAL DE LOSS ---
+            if MODEL_TYPE == "LSTM":
+                loss = combined_loss(predictions, targets)
+            else:
+                # --- SUSTITUCIÓN: Pérdida Ponderada ---
+                # loss = criterion(predictions, targets) # ← Línea original sustituida
+                
+                # Usamos la misma ponderación en validación para ser consistentes
+                loss_attack = log_cosh_loss(predictions[:, 0], targets[:, 0])
+                loss_release = log_cosh_loss(predictions[:, 1], targets[:, 1])
+                loss = (0.35 * loss_attack) + (0.65 * loss_release)
+                # ----------------------------------------
             
             running_loss += loss.item()
     return running_loss / len(loader)
@@ -100,9 +123,9 @@ def main():
             model = CNNRegressor(n_outputs=2).to(DEVICE)
         else:
             from models.lstm_small import LSTMRegressorSmall as LSTMRegressor
-            model = LSTMRegressor(input_size=2, n_outputs=2).to(DEVICE)
+            model = LSTMRegressor(n_outputs=2).to(DEVICE)
         
-        criterion = log_cosh_loss
+        #criterion = log_cosh_loss
         optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=1e-4)
         
         # --- Añadido: Scheduler ---
@@ -110,13 +133,13 @@ def main():
         
         best_val_loss = float('inf')
         patience_counter = 0
-        patience = 10
+        patience = 20
         
         fold_history = {'train_loss': [], 'val_loss': []}
         
         for epoch in range(EPOCHS):
-            train_loss = train_epoch(model, train_loader, optimizer, criterion, DEVICE)
-            val_loss = validate(model, val_loader, criterion, DEVICE)
+            train_loss = train_epoch(model, train_loader, optimizer, DEVICE, MODEL_TYPE)
+            val_loss = validate(model, val_loader, DEVICE, MODEL_TYPE)
             
             # --- Añadido: Paso del scheduler ---
             scheduler.step(val_loss)
@@ -155,7 +178,7 @@ def main():
         plt.plot(history['train_loss'], label=f'Fold {i+1} Train', linestyle=':', alpha=0.5)
     
     plt.xlabel('Época')
-    plt.ylabel('Loss (MAE)')
+    plt.ylabel('Loss (Log-Cosh)')
     plt.title(f'Curvas de Entrenamiento - Validación Cruzada {K_FOLDS} folds ({MODEL_TYPE})')
     plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
     plt.grid(True, linestyle=':', alpha=0.6)
